@@ -74,15 +74,14 @@ public final class WordCountDemo {
     }
 
     static void createWordCountStream(final StreamsBuilder builder) {
-        // final KTable<String, String> source = builder.stream(INPUT_TOPIC);
+        final KStream<String, String> source = builder.stream(INPUT_TOPIC);
 
-        final KTable<String, Long> counts = builder
-            .stream(INPUT_TOPIC)
+        final KTable<String, Long> counts = source
             .flatMapValues(value -> Arrays.asList(value.toLowerCase(Locale.getDefault()).split(" ")))
             .groupBy((key, value) -> value)
-            .windowedBy(TimeWindows.of(Duration.ofSeconds(5)))
+            // .windowedBy(TimeWindows.of(Duration.ofSeconds(5)))
             .count()
-            .filter((key, value) -> key = "Harry");
+            .filter((key, value) -> key.equals("harry"));
             // .if((key, value) -> key = null) {
             //     key = "Harry";
             //     value = 0;
