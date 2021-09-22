@@ -11,7 +11,7 @@ p = Producer({'bootstrap.servers': 'localhost:9092,localhost:9192,localhost:9292
 #     else:
 #         print('Message delivered to {} [{}]'.format(msg.topic(), msg.partition()))
 
-with open('test.txt','r',encoding="utf-8") as f:
+with open('Harry Potter.txt','r',encoding="utf-8") as f:
     read = f.readlines()
 
 file_source = "C:\my_config\/file-source.txt"
