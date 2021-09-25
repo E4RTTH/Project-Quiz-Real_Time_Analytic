@@ -17,21 +17,31 @@
 package org.apache.kafka.streams.examples.wordcount;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.KGroupedStream;
 import org.apache.kafka.streams.kstream.KTable;
 import org.apache.kafka.streams.kstream.Produced;
 import org.apache.kafka.streams.kstream.TimeWindows;
+import org.apache.kafka.streams.kstream.Windowed;
+import org.apache.kafka.streams.kstream.WindowedSerdes;
+import org.apache.kafka.streams.KeyValue;
+import org.apache.kafka.streams.kstream.Suppressed;
+import org.apache.kafka.streams.kstream.Suppressed.BufferConfig;
+import org.apache.kafka.streams.kstream.Materialized;
+import java.util.*;
 
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
+import java.io.FileInputStream;
+import java.io.IOException;
 
 /**
  * Demonstrates, using the high-level KStream DSL, how to implement the WordCount program
@@ -74,20 +84,28 @@ public final class WordCountDemo {
     }
 
     static void createWordCountStream(final StreamsBuilder builder) {
+
         final KStream<String, String> source = builder.stream(INPUT_TOPIC);
 
-        final KTable<String, Long> counts = source
-            .flatMapValues(value -> Arrays.asList(value.toLowerCase(Locale.getDefault()).split(" ")))
-            .groupBy((key, value) -> value)
-            // .windowedBy(TimeWindows.of(Duration.ofSeconds(5)))
-            .count()
-            .filter((key, value) -> key.equals("harry"));
-            // .if((key, value) -> key = null) {
-            //     key = "Harry";
-            //     value = 0;
-            // };
-        // need to override value serde to Long type
-        counts.toStream().to(OUTPUT_TOPIC, Produced.with(Serdes.String(), Serdes.Long()));
+        final KGroupedStream<String, String> grouping = source
+                .flatMapValues(value -> Arrays.asList(value.toLowerCase().split(" ")))
+				.selectKey((ignoredkey, word) -> {
+                if (word.contains("harry")) {
+                    return "harry";
+                } else {
+                    return "temp";
+                }})
+                .groupByKey();
+
+        final KTable<Windowed<String>, Long> counts = grouping
+                .windowedBy(TimeWindows.of(Duration.ofSeconds(5)).grace(Duration.ofMillis(0)))
+                .count(Materialized.with(Serdes.String(), Serdes.Long()))
+                .suppress(Suppressed.untilWindowCloses(Suppressed.BufferConfig.unbounded()));
+
+    
+        final Serde<Windowed<String>> windowedSerde = WindowedSerdes.timeWindowedSerdeFrom(String.class);
+
+        counts.toStream().to(OUTPUT_TOPIC, Produced.with(windowedSerde, Serdes.Long()));
     }
 
     public static void main(final String[] args) throws IOException {
